@@ -11,9 +11,18 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    await prisma.user.delete({
-      where: { email: session.user.email },
-    });
+    // Wrap deletion in a database transaction to clean up orphaned tokens
+    await prisma.$transaction([
+      prisma.verificationToken.deleteMany({
+        where: { identifier: session.user.email },
+      }),
+      prisma.passwordResetToken.deleteMany({
+        where: { email: session.user.email },
+      }),
+      prisma.user.delete({
+        where: { email: session.user.email },
+      }),
+    ]);
 
     return NextResponse.json({ message: "Account deleted" }, { status: 200 });
   } catch (error) {
